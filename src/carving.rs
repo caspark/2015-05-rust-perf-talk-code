@@ -37,9 +37,10 @@ impl Carver {
         self.assert_capacity_matches_image_dimensions(width, height);
         assert!(num_pixels <= pixels.len(), "width * height must be <= given pixel slice");
 
+        unsafe {
         // first row
         for x in 0..width {
-            self.energy[x] = MAX_PIXEL_ENERGY;
+            *self.energy.get_unchecked_mut(x) = MAX_PIXEL_ENERGY;
         }
 
         // middle rows
@@ -47,35 +48,36 @@ impl Carver {
             let height_offset = y * width;
 
             // first column
-            self.energy[height_offset] = MAX_PIXEL_ENERGY;
+            *self.energy.get_unchecked_mut(height_offset) = MAX_PIXEL_ENERGY;
 
             // middle columns
             for x in 1..(width - 1) {
                 let i = height_offset + x;
 
                 let energy_x = {
-                    let x1 = pixels[i - 1];
-                    let x2 = pixels[i + 1];
+                    let x1 = pixels.get_unchecked(i - 1);
+                    let x2 = pixels.get_unchecked(i + 1);
                     (x1.r as i32 - x2.r as i32).pow(2) + (x1.g as i32 - x2.g as i32).pow(2) + (x1.b as i32 - x2.b  as i32).pow(2)
                 };
 
                 let energy_y = {
-                    let y1 = pixels[i - width];
-                    let y2 = pixels[i + width];
+                    let y1 = pixels.get_unchecked(i - width);
+                    let y2 = pixels.get_unchecked(i + width);
                     (y1.r as i32 - y2.r as i32).pow(2) + (y1.g as i32 - y2.g as i32).pow(2) + (y1.b as i32 - y2.b as i32).pow(2)
                 };
 
-                self.energy[i] = energy_x + energy_y;
+                *self.energy.get_unchecked_mut(i) = energy_x + energy_y;
             }
 
             // last column
-            self.energy[height_offset + width - 1] = MAX_PIXEL_ENERGY;
+            *self.energy.get_unchecked_mut(height_offset + width - 1) = MAX_PIXEL_ENERGY;
         }
 
         // last row
         for x in (num_pixels - width)..num_pixels {
-            self.energy[x] = MAX_PIXEL_ENERGY;
+            *self.energy.get_unchecked_mut(x) = MAX_PIXEL_ENERGY;
         }
+        } // end unsafe
     }
 
     #[inline(never)] // makes it easier to interpret callgrind output
@@ -86,22 +88,23 @@ impl Carver {
         let fake_src = num_pixels;
         let fake_dest = num_pixels + 1;
 
+        unsafe {
         for i in 0..(num_pixels + 2) {
-            self.dist_to[i] = i32::max_value();
-            self.prev_vertex[i] = 0;
+            *self.dist_to.get_unchecked_mut(i) = i32::max_value();
+            *self.prev_vertex.get_unchecked_mut(i) = 0;
         }
 
         // fake source pixel edges to each pixel in the first row
         for pixel in 0..width {
-            self.dist_to[pixel] = self.energy[pixel];
-            self.prev_vertex[pixel] = fake_src;
+            *self.dist_to.get_unchecked_mut(pixel) = *self.energy.get_unchecked(pixel);
+            *self.prev_vertex.get_unchecked_mut(pixel) = fake_src;
         }
 
         {
             let mut relax_edge = |from_pixel: usize, to_pixel: usize| {
-                if self.dist_to[to_pixel] > self.dist_to[from_pixel] + self.energy[to_pixel] {
-                    self.dist_to[to_pixel] = self.dist_to[from_pixel] + self.energy[to_pixel];
-                    self.prev_vertex[to_pixel] = from_pixel;
+                if *self.dist_to.get_unchecked(to_pixel) > *self.dist_to.get_unchecked(from_pixel) + *self.energy.get_unchecked(to_pixel) {
+                    *self.dist_to.get_unchecked_mut(to_pixel) = *self.dist_to.get_unchecked(from_pixel) + *self.energy.get_unchecked(to_pixel);
+                    *self.prev_vertex.get_unchecked_mut(to_pixel) = from_pixel;
                 }
             };
 
@@ -128,11 +131,12 @@ impl Carver {
 
         // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
         for pixel in (num_pixels - width)..num_pixels {
-            if self.dist_to[fake_dest] > self.dist_to[pixel] {
-                self.dist_to[fake_dest] = self.dist_to[pixel];
-                self.prev_vertex[fake_dest] = pixel;
+            if *self.dist_to.get_unchecked(fake_dest) > *self.dist_to.get_unchecked(pixel) {
+                *self.dist_to.get_unchecked_mut(fake_dest) = *self.dist_to.get_unchecked(pixel);
+                *self.prev_vertex.get_unchecked_mut(fake_dest) = pixel;
             }
         }
+        } // end unsafe
 
         let mut curr = fake_dest;
         let mut path = Vec::with_capacity(height);
