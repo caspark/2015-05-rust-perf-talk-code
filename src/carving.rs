@@ -86,28 +86,30 @@ impl Carver {
             self.prev_vertex[pixel] = fake_src;
         }
 
-        // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
-        for pixel in 0..(num_pixels - width) {
-            let tmp_len_2;
-            let tmp_len_3;
-            let next_pixel_options: &[usize] = if pixel % width == 0 { // first column
-                tmp_len_2 = [pixel + width, pixel + width + 1];
-                &tmp_len_2
-            } else if (pixel + 1) % width == 0 { // last column
-                tmp_len_2 = [pixel + width - 1, pixel + width];
-                &tmp_len_2
-            } else {
-                tmp_len_3 = [pixel + width - 1, pixel + width, pixel + width + 1];
-                &tmp_len_3
+        {
+            let mut relax_edge = |from_pixel: usize, to_pixel: usize| {
+                if self.dist_to[to_pixel] > self.dist_to[from_pixel] + self.energy[to_pixel] {
+                    self.dist_to[to_pixel] = self.dist_to[from_pixel] + self.energy[to_pixel];
+                    self.prev_vertex[to_pixel] = from_pixel;
+                }
             };
 
-            for &pixel_option in next_pixel_options {
-                if self.dist_to[pixel_option] > self.dist_to[pixel] + self.energy[pixel_option] {
-                    self.dist_to[pixel_option] = self.dist_to[pixel] + self.energy[pixel_option];
-                    self.prev_vertex[pixel_option] = pixel;
+            // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
+            for pixel in 0..(num_pixels - width) {
+                if pixel % width == 0 { // first column
+                    relax_edge(pixel, pixel + width);
+                    relax_edge(pixel, pixel + width + 1);
+                } else if (pixel + 1) % width == 0 { // last column
+                    relax_edge(pixel, pixel + width - 1);
+                    relax_edge(pixel, pixel + width);
+                } else {
+                    relax_edge(pixel, pixel + width - 1);
+                    relax_edge(pixel, pixel + width);
+                    relax_edge(pixel, pixel + width + 1);
                 }
             }
         }
+
 
         // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
         for pixel in (num_pixels - width)..num_pixels {
