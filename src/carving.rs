@@ -37,18 +37,22 @@ impl Carver {
         self.assert_capacity_matches_image_dimensions(width, height);
         assert!(num_pixels <= pixels.len(), "width * height must be <= given pixel slice");
 
+        // first row
+        for x in 0..width {
+            self.energy[x] = MAX_PIXEL_ENERGY;
+        }
 
-        for i in 0..num_pixels {
-            let cached_modulo = i % width;
-            let energy = if i < width { // first row
-                MAX_PIXEL_ENERGY
-            } else if i > width * (height - 1) { // last row
-                MAX_PIXEL_ENERGY
-            } else if cached_modulo == 0 { // first column
-                MAX_PIXEL_ENERGY
-            } else if cached_modulo == width - 1 { // last column
-                MAX_PIXEL_ENERGY
-            } else {
+        // middle rows
+        for y in 1..(height - 1) {
+            let height_offset = y * width;
+
+            // first column
+            self.energy[height_offset] = MAX_PIXEL_ENERGY;
+
+            // middle columns
+            for x in 1..(width - 1) {
+                let i = height_offset + x;
+
                 let energy_x = {
                     let x1 = pixels[i - 1];
                     let x2 = pixels[i + 1];
@@ -61,10 +65,16 @@ impl Carver {
                     (y1.r as i32 - y2.r as i32).pow(2) + (y1.g as i32 - y2.g as i32).pow(2) + (y1.b as i32 - y2.b as i32).pow(2)
                 };
 
-                (energy_x + energy_y)
-            };
+                self.energy[i] = energy_x + energy_y;
+            }
 
-            self.energy[i] = energy;
+            // last column
+            self.energy[height_offset + width - 1] = MAX_PIXEL_ENERGY;
+        }
+
+        // last row
+        for x in (num_pixels - width)..num_pixels {
+            self.energy[x] = MAX_PIXEL_ENERGY;
         }
     }
 
@@ -96,19 +106,22 @@ impl Carver {
             };
 
             // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
-            for pixel in 0..(num_pixels - width) {
-                let cached_modulo = pixel % width;
-                if cached_modulo == 0 { // first column
-                    relax_edge(pixel, pixel + width);
-                    relax_edge(pixel, pixel + width + 1);
-                } else if cached_modulo == width - 1 { // last column
-                    relax_edge(pixel, pixel + width - 1);
-                    relax_edge(pixel, pixel + width);
-                } else {
+            for y in 0..(height - 1) {
+                let height_offset = y * width;
+
+                relax_edge(height_offset, height_offset + width);
+                relax_edge(height_offset, height_offset + width + 1);
+
+                for x in 1..(width - 1) {
+                    let pixel = height_offset + x;
                     relax_edge(pixel, pixel + width - 1);
                     relax_edge(pixel, pixel + width);
                     relax_edge(pixel, pixel + width + 1);
                 }
+
+                let last_col_pixel = height_offset + width - 1;
+                relax_edge(last_col_pixel, last_col_pixel + width - 1);
+                relax_edge(last_col_pixel, last_col_pixel + width);
             }
         }
 
