@@ -39,13 +39,14 @@ impl Carver {
 
 
         for i in 0..num_pixels {
+            let cached_modulo = i % width;
             let energy = if i < width { // first row
                 MAX_PIXEL_ENERGY
             } else if i > width * (height - 1) { // last row
                 MAX_PIXEL_ENERGY
-            } else if i % width == 0 { // first column
+            } else if cached_modulo == 0 { // first column
                 MAX_PIXEL_ENERGY
-            } else if (i + 1) % width == 0 { // last column
+            } else if cached_modulo == width - 1 { // last column
                 MAX_PIXEL_ENERGY
             } else {
                 let energy_x = {
@@ -96,10 +97,11 @@ impl Carver {
 
             // each pixel in the image has an edge to the pixel below and the pixel to the left and right of that
             for pixel in 0..(num_pixels - width) {
-                if pixel % width == 0 { // first column
+                let cached_modulo = pixel % width;
+                if cached_modulo == 0 { // first column
                     relax_edge(pixel, pixel + width);
                     relax_edge(pixel, pixel + width + 1);
-                } else if (pixel + 1) % width == 0 { // last column
+                } else if cached_modulo == width - 1 { // last column
                     relax_edge(pixel, pixel + width - 1);
                     relax_edge(pixel, pixel + width);
                 } else {
